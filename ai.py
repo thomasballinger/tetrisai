@@ -36,6 +36,10 @@ class Evaluator(object):
         s += ' + '.join([str(w) + '*' + f.__name__  for f, w in zip(self.funcs, self.weights)])
         s += '>'
         return s
+    def __eq__(self, other):
+        return (self.funcs, self.weights) == (other.funcs, other.weights)
+    def __hash__(self):
+        return hash((self.funcs, self.weights))
 
 class MoveChooser(object):
     def __init__(self, evaluator, n=1):
@@ -58,6 +62,10 @@ class MoveChooser(object):
         s += str(self.evaluator)
         s += '>'
         return s
+    def __eq__(self, other):
+        return (self.evaluator, self.n) == (other.evaluator, other.n)
+    def __hash__(self):
+        return hash((self.evaluator, self.n))
 
 best = functools.partial(MoveChooser, n=1)
 
@@ -81,18 +89,41 @@ def all_moves(board, piece):
 # features
 
 #TODO cache intermediate results for other metrics to use, and use lazy evaluation so order doesn't matter
+
+#TODO include information (or calculate it?) about the expected range of each function for normalization
+# or maybe just return the normalized versions here instead
+
 def total_blocks(board):
     return board.array.sum()
-def total_surface_area(board):
-    return 0
-def top_surface_area(board):
-    board.array
-    return 0
-def caverns(board):
-    return 0
 def linear_height_penalty(board):
     penalty = numpy.hstack([[[x] for x in range(board.height, 0, -1)] for i in range(board.width)])
     return (penalty * board.array).sum()
+def empties_with_block_right_above(board):
+    total = 0
+    for row in range(board.rows):
+        if row < 1:
+            continue
+        for column in range(board.columns):
+            if board.array[row-1, column] and not board.array[row, column]:
+                total += 1
+    return total
+def covered_sides(board):
+    total = 0
+    for row in [0, board.rows-1]:
+        for column in range(board.columns):
+            if board.array[row, column]:
+                total += 1
+    return total
+def covered_bottom(board):
+    total = 0
+    for column in range(board.columns):
+        if board.array[board.rows-1, column]:
+            total += 1
+    return total
+#ideas
+def total_surface_area(board): pass
+def top_surface_area(board): pass
+def caverns(board): pass
 
 
 def test_all_moves():
@@ -142,11 +173,7 @@ def simulate(chooser, n=1):
 
 def run_simple_evolution():
     choosers = [
-        best(Evaluator((total_blocks, 0), (linear_height_penalty, 0))),
-        best(Evaluator((total_blocks, 1), (linear_height_penalty, 1))),
-        best(Evaluator((total_blocks, -1), (linear_height_penalty, 1))),
-        #best(Evaluator((total_blocks, 1), (linear_height_penalty, -1))),
-        #best(Evaluator((total_blocks, -1), (linear_height_penalty, -1))),
+        best(Evaluator((total_blocks, 0), (linear_height_penalty, 0), (empties_with_block_right_above, 0), (covered_sides, 0), (covered_bottom, 0))),
         ]
     evolve(choosers)
 
@@ -154,25 +181,31 @@ def mutate_simple_chooser(chooser):
     func_weight_pairs = []
     for i, (func, weight) in enumerate(zip(chooser.evaluator.funcs, chooser.evaluator.weights)):
         r = random.random()
-        if r > .7:
-            func_weight_pairs.append((func, weight+1))
-        elif r < .3:
-            func_weight_pairs.append((func, weight-1))
+        if r > .90:
+            if abs(weight) == 0:
+                weight = 1
+            else:
+                weight *= 2
+        elif r < .1:
+            if abs(weight) == 0:
+                weight = -1
+            else:
+                weight *= .5
+        elif .47 < r < .53:
+            weight *= -1
         else:
-            func_weight_pairs.append((func, weight))
+            pass
+        func_weight_pairs.append((func, weight))
     new_chooser = best(Evaluator(*func_weight_pairs))
     return new_chooser
 
-
-
-def evolve(choosers):
-    num_choosers = len(choosers)
+def evolve(choosers, num_choosers=5):
     for roundnum in xrange(1000):
         results = []
         for chooser in choosers:
             print 'starting simulation for ', chooser
             runs = []
-            for i in range(1, 2):
+            for i in range(1, 4):
                 runs.append(simulate(chooser)[0])
                 print 'finished simulation', i, 'for', chooser
                 print runs[-1]
@@ -189,9 +222,9 @@ def evolve(choosers):
 
         print '======='
         print '======='
-        choosers = [results[-1][1]]
+        choosers = set([results[-1][1]])
         for _ in range(1, num_choosers):
-            choosers.append(mutate_simple_chooser(results[-1][1]))
+            choosers.add(mutate_simple_chooser(results[-1][1]))
         print 'new choosers:'
         for chooser in choosers:
             print chooser
