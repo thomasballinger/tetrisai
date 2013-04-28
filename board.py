@@ -18,15 +18,6 @@ ValueError: Not a stable position on board
 >>> b2 + _[0]
 <Board object at 0x012345678>
 
->>> f = evaluator((blocks, 3.2), (caverns, -2))
->>> f(b)
-123.456
->>> g = move_thresholder(f, 150)
->>> g2 = move_chooser(f, 3)
->>> g3 = all_moves
-
->>> h = tree_evaluator(f, g, 4)
-<I at (2,3), rot 2>
 """
 import numpy
 
@@ -74,6 +65,10 @@ class Board(object):
         new = Board(copy_of=self.array)
         new._array.flags.writeable = True
         on_board = piece.on_board()
+        if not piece.in_bounds(self.array.shape):
+            raise ValueError("Piece {} is out of bounds".format(piece))
+        if (on_board & self.array).any():
+            raise ValueError("Piece {} collides with debris".format(piece))
         new._array += on_board
         new._array.flags.writeable = False
         return new
@@ -99,24 +94,3 @@ class Board(object):
                 new._array[0, :] = 0
         new._array.flags.writeable = False
         return new
-
-# move selection methods
-
-def all_boards(board, piece):
-    possible = []
-    for col in range(board.columns):
-        for row in range(board.rows):
-            for i in range(len(piece.rotations)):
-                piece.rotate(i)
-                try:
-                    possible.append(board + piece)
-                except ValueError:
-                    pass
-                #TODO check if piece could actually get there!
-    return possible
-
-def evaluate(board):
-    metrics = ['total_blocks', 'linear_height_penalty']
-    data = {metric: getattr(board, metric) for metric in metrics}
-    data['board'] = board
-    return data

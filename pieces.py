@@ -1,8 +1,9 @@
 """Tetronimos"""
 import numpy
 import board
+import random
 
-__all__ = list("IJLSTZ") + ["TETRONIMOS"]
+__all__ = list("IJLSTZ") + ["TETRONIMOS", 'random_tetronimo']
 
 rotations = {
     'i1' :[[0,0,0,0],
@@ -57,7 +58,8 @@ class Piece(object):
         return '<%s at %s, rot %s>' % (self.__class__.__name__, self.pos, self._rotation_index)
     def rotate(self, offset=1):
         self._rotation_index = (self._rotation_index + offset) % len(self.rotations)
-
+    def set_rotation(self, index=0):
+        self._rotation_index = index
     #TODO more efficient, clearner code for figuring out if position on board is legal?
     def on_board(self, dims=board.Board().array.shape):
         padded_board = self._on_padded_board(dims)
@@ -95,3 +97,6 @@ for tetronimo_name in 'JLT':
             {'rotations':generate_3x3_rotations(rotations[tetronimo_name.lower()])})
     locals()[tetronimo_name] = piece
     TETRONIMOS[tetronimo_name] = piece
+
+def random_tetronimo():
+    return random.choice(TETRONIMOS.values())
