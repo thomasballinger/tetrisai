@@ -2,12 +2,12 @@ class Shape {
 	public:
 		Shape();
 		int get_size();
-		int (*get_matrix(int rot))[];
+		int *get_matrix(int rot);
 	protected:
 		int size;
 
 		// an array[4] of pointers to arrays fo ints
-		int (*rotation_matrices[4])[];
+		int *rotation_matrices[4];
 };
 
 class Board {
