@@ -20,7 +20,7 @@ int (*Shape::get_matrix(int rot)){
     }
     return rotation_matrices[rot];
 }
-	
+
 int IShape::rot1[] = {0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0};
 int IShape::rot2[] = {0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0};
 IShape::IShape(){
@@ -30,6 +30,8 @@ IShape::IShape(){
     rotation_matrices[2] = rot1;
     rotation_matrices[3] = rot2;
 }
+
+Board::Board(): 
 
 int main()
 {
