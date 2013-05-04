@@ -16,8 +16,7 @@ typedef struct {
   int x;
   int y;
   int bag;
-} move;
-
+} Move;
 
 typedef int Pos[2];
 typedef Pos Rotation[4];
@@ -49,6 +48,26 @@ static Shape2 Z = {{0, 1, 1, 1, 1, 2, 2, 2},
 
 typedef int Board[HEIGHT][WIDTH];
 typedef float (*p_Metric)(Board board);
+
+float linear_penalty(Board board){
+  int total = 0;
+  for (int h = 0; h < HEIGHT; h++){
+    for (int w = 0; w < WIDTH; w++){
+      total += board[h][w] * (HEIGHT - h);
+    }
+  }
+  return (float) total;
+}
+
+float num_blocks(Board board){
+  int total = 0;
+  for (int h = 0; h < HEIGHT; h++){
+    for (int w = 0; w < WIDTH; w++){
+      total += board[h][w];
+    }
+  }
+  return (float) total;
+}
 
 static Board blank;
 void initialize(){
@@ -111,7 +130,32 @@ void remove_rot_from_board(Board board, Rotation r, int x, int y){
 };
 
 //todo - make a move, call eval_move, unmake the move in the move_finder function
-float eval_move(Board board, Piece piece_char, int num_metrics, p_Metric metrics[], int metric_weights[]);
+float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int metric_weights[]){
+  int num_rots = 0;
+  switch (move.piece) {
+
+    case 'O':
+      num_rots = 1;
+      Rotation rots[1] = &O;
+      for (int p = 0; p < 4; p++){
+        int xpos = move.x + O[move.r][p][0];
+        int ypos = move.y + O[move.r][p][1];
+
+
+    case 'I': num_rots = 2; p_shape = &I;
+    case 'S': num_rots = 2; p_shape = &I;
+    case 'Z': num_rots = 2; p_shape = &I;
+    case 'J': num_rots = 4; p_shape = &I;
+    case 'L': num_rots = 4; p_shape = &I;
+    case 'T': num_rots = 4; p_shape = &I;
+
+
+  float total = 0.0;
+  for (int i = 0; i < num_metrics; i++){
+    total += (*metrics[i]) (board);
+  }
+  return total;
+}
 // if that move clears lines, make a new board to use in the metrics
 
 // given a board,
@@ -170,4 +214,11 @@ int main()
   //add_rot_to_board_unsafe(*p_b, *p_r, 1, 1);
   add_rot_to_board(*p_b, *p_r, 1, HEIGHT-2);
   display_board(*p_b);
-};
+
+  p_Metric metrics[2];
+  metrics[0] = linear_penalty;
+  metrics[1] = num_blocks;
+  int weights[2] = {1.0, 1.0};
+  
+  float score = eval_move(*p_b, 'O', 2, metrics, weights);
+  printf("score: %f", score); };

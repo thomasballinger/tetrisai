@@ -137,7 +137,7 @@ def test_all_moves():
             raw_input()
 
 def test_simple_ai():
-    e1 = Evaluator((total_blocks, -1), (linear_height_penalty, -1))
+    e1 = Evaluator((total_blocks, -1), (linear_height_penalty, -.2), (empties_with_block_right_above, -10), (covered_sides, 1))
     chooser1 = best(e1)
     piece = random_tetronimo()(0,3)
     cur_board = board.Board()
@@ -232,7 +232,7 @@ def evolve(choosers, num_choosers=5):
 
 if __name__ == '__main__':
     #test_all_moves()
-    #test_simple_ai()
+    test_simple_ai()
     #simulate_simple_chooser()
-    run_simple_evolution()
+    #run_simple_evolution()
 
