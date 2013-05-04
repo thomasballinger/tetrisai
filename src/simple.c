@@ -132,22 +132,23 @@ void remove_rot_from_board(Board board, Rotation r, int x, int y){
 //todo - make a move, call eval_move, unmake the move in the move_finder function
 float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int metric_weights[]){
   int num_rots = 0;
+  Shape4 *p_shape;
   switch (move.piece) {
-
-    case 'O':
-      num_rots = 1;
-      Rotation rots[1] = &O;
-      for (int p = 0; p < 4; p++){
-        int xpos = move.x + O[move.r][p][0];
-        int ypos = move.y + O[move.r][p][1];
-
-
-    case 'I': num_rots = 2; p_shape = &I;
-    case 'S': num_rots = 2; p_shape = &I;
-    case 'Z': num_rots = 2; p_shape = &I;
-    case 'J': num_rots = 4; p_shape = &I;
-    case 'L': num_rots = 4; p_shape = &I;
-    case 'T': num_rots = 4; p_shape = &I;
+    case 'O': num_rots = 1; p_shape = (Shape4 *) &O; break;
+    case 'I': num_rots = 2; p_shape = (Shape4 *) &I; break;
+    case 'S': num_rots = 2; p_shape = (Shape4 *) &S; break;
+    case 'Z': num_rots = 2; p_shape = (Shape4 *) &Z; break;
+    case 'J': num_rots = 4; p_shape = &J; break;
+    case 'L': num_rots = 4; p_shape = &L; break;
+    case 'T': num_rots = 4; p_shape = &T; break;
+  }
+  for (int r = 0; r < num_rots; r++){
+    for (int p = 0; p < 4; p++){
+      int xpos = move.x + *p_shape[move.r][p][0];
+      int ypos = move.y + *p_shape[move.r][p][1];
+      board[ypos][xpos] = 1;
+    }
+  }
 
 
   float total = 0.0;
@@ -155,7 +156,7 @@ float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int
     total += (*metrics[i]) (board);
   }
   return total;
-}
+};
 // if that move clears lines, make a new board to use in the metrics
 
 // given a board,
@@ -220,5 +221,13 @@ int main()
   metrics[1] = num_blocks;
   int weights[2] = {1.0, 1.0};
   
-  float score = eval_move(*p_b, 'O', 2, metrics, weights);
-  printf("score: %f", score); };
+  Move move;
+  move.piece = 'O';
+  move.x = 1;
+  move.y = 0;
+  move.bag = 0b01111111;
+  move.r = 0;
+
+  float score = eval_move(*p_b, move, 2, metrics, weights);
+  printf("score: %f", score);
+};
