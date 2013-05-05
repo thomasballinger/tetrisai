@@ -1,8 +1,10 @@
 // Trying no padding in this implementation
 //
 
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef enum { false, true } bool;
 typedef char Piece;
@@ -49,6 +51,8 @@ static Shape2 Z = {{0, 1, 1, 1, 1, 2, 2, 2},
 typedef int Board[HEIGHT][WIDTH];
 typedef float (*p_Metric)(Board board);
 
+void display_board(Board board);
+
 float linear_penalty(Board board){
   int total = 0;
   for (int h = 0; h < HEIGHT; h++){
@@ -85,23 +89,17 @@ bool rot_fits_on_board(Board board, Rotation r, int x, int y){
   for (int p = 0; p < 4; p++){
     int xpos = x + r[p][0];
     int ypos = y + r[p][1];
-    //printf("xpos:%d", xpos);
-    //printf("ypos:%d", ypos);
-    //printf("WIDTH:%d", WIDTH);
-    //printf("HEIGHT:%d", HEIGHT);
     if (xpos < 0 || ypos < 0 || xpos >= WIDTH || ypos >= HEIGHT){
       //printf("rot out of bounds");
       return false;
     }
     if (board[ypos][xpos]){
-      //printf("board filled at position (%d, %d)", xpos, ypos);
       return false;
     }
     if (!at_rest && ypos == HEIGHT-1 && board[ypos + 1]){
       at_rest = true;
     }
   }
-  //printf("rot is at rest: %d", at_rest);
   return at_rest;
 };
 
@@ -129,10 +127,9 @@ void remove_rot_from_board(Board board, Rotation r, int x, int y){
   }
 };
 
-//todo - make a move, call eval_move, unmake the move in the move_finder function
-float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int metric_weights[]){
-  int num_rots = 0;
+Rotation *p_rot_from_move(Move move){
   Shape4 *p_shape;
+  int num_rots = 0;
   switch (move.piece) {
     case 'O': num_rots = 1; p_shape = (Shape4 *) &O; break;
     case 'I': num_rots = 2; p_shape = (Shape4 *) &I; break;
@@ -142,21 +139,86 @@ float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int
     case 'L': num_rots = 4; p_shape = &L; break;
     case 'T': num_rots = 4; p_shape = &T; break;
   }
-  for (int r = 0; r < num_rots; r++){
-    for (int p = 0; p < 4; p++){
-      int xpos = move.x + *p_shape[move.r][p][0];
-      int ypos = move.y + *p_shape[move.r][p][1];
-      board[ypos][xpos] = 1;
+  Rotation *p_rot = &(*p_shape)[move.r];
+  //printf("rotation: %d", (*p_rot)[0][0]);
+  return p_rot;
+};
+
+float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int metric_weights[]){
+  //todo benchmark creating new arrays conditionally vs always
+  int num_rots = 0;
+  //question do I really need to cast here?
+  Board *p_use_board = (Board *) board;
+  Rotation *p_rot = p_rot_from_move(move);
+  bool lines_affected[HEIGHT] = { 0 }; //missing entries will be filled in with zeros apparently?
+  bool lines_cleared[HEIGHT] = { 0 };
+  for (int p = 0; p < 4; p++){
+    //todo work through why the parens are needed around *p_shape) here
+    int xpos = move.x + (*p_rot)[p][0];
+    int ypos = move.y + (*p_rot)[p][1];
+    //printf("placing block at %d %d\n", xpos, ypos);
+    lines_affected[ypos] = true;
+    board[ypos][xpos] = 1;
+  }
+  bool need_copy = false;
+  for (int h = HEIGHT - 1; h >= 0; h--){
+    if (!lines_affected[h]){continue;}
+    for (int w = 0; w < WIDTH; w++){
+      if (!board[h][w]){break;}
+      if (w == WIDTH - 1){
+        need_copy = true;
+        lines_cleared[h] = 1;
+      }
     }
   }
 
+  // undoing line clears seems like hard work, so use a temp board if we need it,
+  // but otherwise don't bother using a new grid for efficiency
+  // TODO find out if this is true, it complicates the code a bit
+  // to do this conditional temp board thing
+  if (need_copy){
+    p_use_board = malloc(sizeof(Board));
+    memcpy(p_use_board, &board, sizeof(Board));
+  }
 
+  int row_to_move_to = HEIGHT;
+  for (int h = HEIGHT - 1; h >= 0; h--){
+    if (lines_cleared[h]){
+      continue;
+    } else {
+      row_to_move_to--;
+    }
+    if (row_to_move_to == h){
+      continue;
+    }
+    for (int w = 0; w < WIDTH; w++){
+      //since we're careful about never reading the same row after it's been written, this is ok
+      (*p_use_board)[row_to_move_to][w] = board[h][w];
+    }
+  }
+  row_to_move_to--;
+  while (row_to_move_to >= 0){
+    for (int w = 0; w < WIDTH; w++){
+      (*p_use_board)[row_to_move_to][w] = 0;
+    }
+    row_to_move_to--;
+  }
+        
   float total = 0.0;
   for (int i = 0; i < num_metrics; i++){
-    total += (*metrics[i]) (board);
+    total += (*metrics[i]) (*p_use_board);
+  }
+
+  // fixing up the board to be in its previous state
+  for (int p = 0; p < 4; p++){
+    int xpos = move.x + (*p_rot)[p][0];
+    int ypos = move.y + (*p_rot)[p][1];
+    board[ypos][xpos] = 0;
   }
   return total;
 };
+
+
 // if that move clears lines, make a new board to use in the metrics
 
 // given a board,
@@ -213,7 +275,10 @@ int main()
   Board *p_b = (Board *) calloc(1, sizeof(Board));
   display_board(*p_b);
   //add_rot_to_board_unsafe(*p_b, *p_r, 1, 1);
-  add_rot_to_board(*p_b, *p_r, 1, HEIGHT-2);
+  add_rot_to_board(*p_b, *p_r, 0, HEIGHT-2);
+  add_rot_to_board(*p_b, *p_r, 2, HEIGHT-2);
+  add_rot_to_board(*p_b, *p_r, 4, HEIGHT-2);
+  add_rot_to_board(*p_b, *p_r, 6, HEIGHT-2);
   display_board(*p_b);
 
   p_Metric metrics[2];
@@ -221,13 +286,10 @@ int main()
   metrics[1] = num_blocks;
   int weights[2] = {1.0, 1.0};
   
-  Move move;
-  move.piece = 'O';
-  move.x = 1;
-  move.y = 0;
-  move.bag = 0b01111111;
-  move.r = 0;
 
-  float score = eval_move(*p_b, move, 2, metrics, weights);
-  printf("score: %f", score);
+  float score;
+  Move move = {'O', 0, 7, 2, 0};
+  score = eval_move(*p_b, move, 2, metrics, weights);
+  display_board(*p_b);
+  printf("score of move %c, r:%d, (%d, %d): %f\n", move.piece, move.r, move.x, move.y, score);
 };
