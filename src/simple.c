@@ -1,6 +1,9 @@
 // Trying no padding in this implementation
 //
 
+// moves represented as {T,0,1,0b0111111} for shape, x, y, bitmap of what's in the bag 
+//metrics are functions that take boards and return floats based on something or other
+//Board (*get_boards(Board board, char piece)[HEIGHT];
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,7 +72,6 @@ Rotation *p_rot_from_move(Move move){
   //printf("rotation: %d", (*p_rot)[0][0]);
   return p_rot;
 };
-
 
 float linear_penalty(Board board){
   int total = 0;
@@ -219,6 +221,7 @@ float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int
     p_use_board = malloc(sizeof(Board));
     memcpy(p_use_board, &board, sizeof(Board));
   }
+  // TODO later for efficiency maybe: return references to the new board if applicable
 
   int row_to_move_to = HEIGHT;
   for (int h = HEIGHT - 1; h >= 0; h--){
@@ -256,30 +259,6 @@ float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int
   }
   return total;
 };
-
-
-// if that move clears lines, make a new board to use in the metrics
-
-// given a board,
-//   find all legal moves
-//   evaluate them with eval_move
-//     eval_move will build a new board to run the metrics on if lines cleared
-//     todo later for efficiency maybe: return references to the new board if applicable
-//   choose k moves to take forward
-//   <probabilistic node here>
-//   for each of the k moves,
-//     build a new board
-//     find all legal moves
-//     evaluate them
-//     choose k to take forward
-//
-// metrics are functions that take boards and return floats based on something or other
-
-
-// moves represented as {T,0,1,0b0111111} for shape, x, y, bitmap of what's in the bag 
-
-//Board (*get_boards(Board board, char piece)[HEIGHT];
-
 
 void display_board(Board board){
   for (int h = 0; h < HEIGHT; h++){
@@ -345,9 +324,6 @@ Move next_valid_move(){
   }
 };
 
-
-
-
 int main()
 {
   initialize();
@@ -368,26 +344,15 @@ int main()
   int weights[2] = {1.0, 1.0};
   
   float score;
-  Move move = {'O', 0, 7, 2, 0};
-  for (int y = 0; y < HEIGHT; y++){
-    for (int x = 0; x < WIDTH; x++){
-      move.x = x;
-      move.y = y; if (move_fits_on_board(*p_b, move)){
-        score = eval_move(*p_b, move, 2, metrics, weights);
-        printf("score of move %c, r:%d, (%d, %d): %f\n", move.piece, move.r, move.x, move.y, score);
-      } else {
-        //printf("move %c, r:%d, (%d, %d): is not good\n", move.piece, move.r, move.x, move.y);
-      }
-    }
-  }
   use_board_for_move_generator(p_b, 'O');
   Move m;
-  m.piece = 'x';
   while (true){
     m = next_valid_move();
-    printf("next valid move: %c, r:%d, (%d, %d)\n", m.piece, m.r, m.x, m.y);
+    //printf("next valid move: %c, r:%d, (%d, %d)\n", m.piece, m.r, m.x, m.y);
     if (m.piece == '-'){
       break;
     }
+    score = eval_move(*p_b, m, 2, metrics, weights);
+    printf("score of move %c, r:%d, (%d, %d): %f\n", m.piece, m.r, m.x, m.y, score);
   }
 };
