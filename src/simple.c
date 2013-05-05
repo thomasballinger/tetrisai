@@ -53,6 +53,24 @@ typedef float (*p_Metric)(Board board);
 
 void display_board(Board board);
 
+Rotation *p_rot_from_move(Move move){
+  Shape4 *p_shape;
+  int num_rots = 0;
+  switch (move.piece) {
+    case 'O': num_rots = 1; p_shape = (Shape4 *) &O; break;
+    case 'I': num_rots = 2; p_shape = (Shape4 *) &I; break;
+    case 'S': num_rots = 2; p_shape = (Shape4 *) &S; break;
+    case 'Z': num_rots = 2; p_shape = (Shape4 *) &Z; break;
+    case 'J': num_rots = 4; p_shape = &J; break;
+    case 'L': num_rots = 4; p_shape = &L; break;
+    case 'T': num_rots = 4; p_shape = &T; break;
+  }
+  Rotation *p_rot = &(*p_shape)[move.r];
+  //printf("rotation: %d", (*p_rot)[0][0]);
+  return p_rot;
+};
+
+
 float linear_penalty(Board board){
   int total = 0;
   for (int h = 0; h < HEIGHT; h++){
@@ -103,10 +121,40 @@ bool rot_fits_on_board(Board board, Rotation r, int x, int y){
   return at_rest;
 };
 
+//TODO figure out which of these is better, and just use that one
+bool move_fits_on_board(Board board, Move move){
+  Rotation *p_r = p_rot_from_move(move);
+  bool at_rest = false;
+  for (int p = 0; p < 4; p++){
+    int xpos = move.x + (*p_r)[p][0];
+    int ypos = move.y + (*p_r)[p][1];
+    if (xpos < 0 || ypos < 0 || xpos >= WIDTH || ypos >= HEIGHT){
+      //printf("rot out of bounds");
+      return false;
+    }
+    if (board[ypos][xpos]){
+      return false;
+    }
+    if (!at_rest && (ypos == HEIGHT-1 || board[ypos + 1][xpos])){
+      at_rest = true;
+    }
+  }
+  return at_rest;
+};
+
 void add_rot_to_board_unsafe(Board board, Rotation r, int x, int y){
   for (int p = 0; p < 4; p++){
     int xpos = r[p][0] + x;
     int ypos = r[p][1] + y;
+    board[ypos][xpos] = 1;
+  }
+};
+
+void add_move_to_board_unsafe(Board board, Move move){
+  Rotation *p_r = p_rot_from_move(move);
+  for (int p = 0; p < 4; p++){
+    int xpos = (*p_r)[p][0] + move.x;
+    int ypos = (*p_r)[p][1] + move.y;
     board[ypos][xpos] = 1;
   }
 };
@@ -119,29 +167,20 @@ bool add_rot_to_board(Board board, Rotation r, int x, int y){
   return false;
 };
 
+bool add_move_to_board(Board board, Move move){
+  if (move_fits_on_board(board, move)){
+    add_move_to_board_unsafe(board, move);
+    return true;
+  }
+  return false;
+};
+
 void remove_rot_from_board(Board board, Rotation r, int x, int y){
   for (int p = 0; p < 4; p++){
     int xpos = r[p][0] + x;
     int ypos = r[p][1] + y;
     board[ypos][xpos] = 0;
   }
-};
-
-Rotation *p_rot_from_move(Move move){
-  Shape4 *p_shape;
-  int num_rots = 0;
-  switch (move.piece) {
-    case 'O': num_rots = 1; p_shape = (Shape4 *) &O; break;
-    case 'I': num_rots = 2; p_shape = (Shape4 *) &I; break;
-    case 'S': num_rots = 2; p_shape = (Shape4 *) &S; break;
-    case 'Z': num_rots = 2; p_shape = (Shape4 *) &Z; break;
-    case 'J': num_rots = 4; p_shape = &J; break;
-    case 'L': num_rots = 4; p_shape = &L; break;
-    case 'T': num_rots = 4; p_shape = &T; break;
-  }
-  Rotation *p_rot = &(*p_shape)[move.r];
-  //printf("rotation: %d", (*p_rot)[0][0]);
-  return p_rot;
 };
 
 float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int metric_weights[]){
@@ -267,6 +306,48 @@ void display_rotation(Rotation rot){
   printf("\n");
 };
 
+static Board *p_board_for_move_generator;
+static int x_for_move_generator;
+static int y_for_move_generator;
+static int r_for_move_generator;
+static Move move_for_move_generator;
+void use_board_for_move_generator(Board *p_board, Piece piece){
+  p_board_for_move_generator = p_board;
+  move_for_move_generator.piece = piece;
+  move_for_move_generator.x = -1;
+  move_for_move_generator.y = 0;
+  move_for_move_generator.r = 0;
+}
+
+Move next_move(){
+  move_for_move_generator.x++;
+  if (move_for_move_generator.x == WIDTH){
+    move_for_move_generator.x = 0;
+    move_for_move_generator.y++;
+  }
+  if (move_for_move_generator.y >= HEIGHT){
+    move_for_move_generator.piece = '-';
+  }
+  return move_for_move_generator;
+};
+
+Move next_valid_move(){
+  Move move;
+  while (true){
+    next_move();
+    if (move_for_move_generator.piece == '-'){
+      return move_for_move_generator;
+    }
+    if (move_fits_on_board(*p_board_for_move_generator, move_for_move_generator)){
+      return move_for_move_generator;
+    }
+    //printf("move not valid: %c, r:%d, (%d, %d)\n", move_for_move_generator.piece, move_for_move_generator.r, move_for_move_generator.x, move_for_move_generator.y);
+  }
+};
+
+
+
+
 int main()
 {
   initialize();
@@ -286,10 +367,27 @@ int main()
   metrics[1] = num_blocks;
   int weights[2] = {1.0, 1.0};
   
-
   float score;
   Move move = {'O', 0, 7, 2, 0};
-  score = eval_move(*p_b, move, 2, metrics, weights);
-  display_board(*p_b);
-  printf("score of move %c, r:%d, (%d, %d): %f\n", move.piece, move.r, move.x, move.y, score);
+  for (int y = 0; y < HEIGHT; y++){
+    for (int x = 0; x < WIDTH; x++){
+      move.x = x;
+      move.y = y; if (move_fits_on_board(*p_b, move)){
+        score = eval_move(*p_b, move, 2, metrics, weights);
+        printf("score of move %c, r:%d, (%d, %d): %f\n", move.piece, move.r, move.x, move.y, score);
+      } else {
+        //printf("move %c, r:%d, (%d, %d): is not good\n", move.piece, move.r, move.x, move.y);
+      }
+    }
+  }
+  use_board_for_move_generator(p_b, 'O');
+  Move m;
+  m.piece = 'x';
+  while (true){
+    m = next_valid_move();
+    printf("next valid move: %c, r:%d, (%d, %d)\n", m.piece, m.r, m.x, m.y);
+    if (m.piece == '-'){
+      break;
+    }
+  }
 };
