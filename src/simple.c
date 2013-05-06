@@ -93,38 +93,10 @@ float num_blocks(Board board){
   return (float) total;
 }
 
-static Board blank;
-void initialize(){
-  for (int h = 0; h < HEIGHT; h++){
-    for (int w = 0; w < WIDTH; w++){
-      blank[h][w] = 0;
-    }
-  }
-};
-
-bool rot_fits_on_board(Board board, Rotation r, int x, int y){
-  //todo try using a larger board representation so we never have to bounds check, see if that's faster
-  //todo try using mutable board state instead of many boards
-  bool at_rest = false;
-  for (int p = 0; p < 4; p++){
-    int xpos = x + r[p][0];
-    int ypos = y + r[p][1];
-    if (xpos < 0 || ypos < 0 || xpos >= WIDTH || ypos >= HEIGHT){
-      //printf("rot out of bounds");
-      return false;
-    }
-    if (board[ypos][xpos]){
-      return false;
-    }
-    if (!at_rest && ypos == HEIGHT-1 && board[ypos + 1]){
-      at_rest = true;
-    }
-  }
-  return at_rest;
-};
-
 //TODO figure out which of these is better, and just use that one
 bool move_fits_on_board(Board board, Move move){
+  //todo try using a larger board representation so we never have to bounds check, see if that's faster
+  //todo try using mutable board state instead of many boards
   Rotation *p_r = p_rot_from_move(move);
   bool at_rest = false;
   for (int p = 0; p < 4; p++){
@@ -144,14 +116,6 @@ bool move_fits_on_board(Board board, Move move){
   return at_rest;
 };
 
-void add_rot_to_board_unsafe(Board board, Rotation r, int x, int y){
-  for (int p = 0; p < 4; p++){
-    int xpos = r[p][0] + x;
-    int ypos = r[p][1] + y;
-    board[ypos][xpos] = 1;
-  }
-};
-
 void add_move_to_board_unsafe(Board board, Move move){
   Rotation *p_r = p_rot_from_move(move);
   for (int p = 0; p < 4; p++){
@@ -161,28 +125,12 @@ void add_move_to_board_unsafe(Board board, Move move){
   }
 };
 
-bool add_rot_to_board(Board board, Rotation r, int x, int y){
-  if (rot_fits_on_board(board, r, x, y)){
-    add_rot_to_board_unsafe(board, r, x, y);
-    return true;
-  }
-  return false;
-};
-
 bool add_move_to_board(Board board, Move move){
   if (move_fits_on_board(board, move)){
     add_move_to_board_unsafe(board, move);
     return true;
   }
   return false;
-};
-
-void remove_rot_from_board(Board board, Rotation r, int x, int y){
-  for (int p = 0; p < 4; p++){
-    int xpos = r[p][0] + x;
-    int ypos = r[p][1] + y;
-    board[ypos][xpos] = 0;
-  }
 };
 
 float eval_move(Board board, Move move, int num_metrics, p_Metric metrics[], int metric_weights[]){
@@ -290,12 +238,20 @@ static int x_for_move_generator;
 static int y_for_move_generator;
 static int r_for_move_generator;
 static Move move_for_move_generator;
+static Board allowedMoves[4]; // indexed by [rotation][row][column]
 void use_board_for_move_generator(Board *p_board, Piece piece){
   p_board_for_move_generator = p_board;
   move_for_move_generator.piece = piece;
   move_for_move_generator.x = -1;
   move_for_move_generator.y = 0;
   move_for_move_generator.r = 0;
+  for (h = 0; h < HEIGHT; h++){
+    for (w = 0; w < WIDTH; w++){
+      for (r = 0; r < 4; r++){
+        allowedMoves[r][h][w] = 0;
+      }
+    }
+  }
 }
 
 Move next_move(){
@@ -317,7 +273,12 @@ Move next_valid_move(){
     if (move_for_move_generator.piece == '-'){
       return move_for_move_generator;
     }
-    if (move_fits_on_board(*p_board_for_move_generator, move_for_move_generator)){
+    if (!move_fits_on_board(*p_board_for_move_generator, move_for_move_generator)){
+      continue;
+    }
+    // all pieces start at 4 over, 2 down, r 0
+
+
       return move_for_move_generator;
     }
     //printf("move not valid: %c, r:%d, (%d, %d)\n", move_for_move_generator.piece, move_for_move_generator.r, move_for_move_generator.x, move_for_move_generator.y);
@@ -326,16 +287,14 @@ Move next_valid_move(){
 
 int main()
 {
-  initialize();
   Rotation *p_r = &(O[0]);
   display_rotation(*p_r);
   Board *p_b = (Board *) calloc(1, sizeof(Board));
   display_board(*p_b);
-  //add_rot_to_board_unsafe(*p_b, *p_r, 1, 1);
-  add_rot_to_board(*p_b, *p_r, 0, HEIGHT-2);
-  add_rot_to_board(*p_b, *p_r, 2, HEIGHT-2);
-  add_rot_to_board(*p_b, *p_r, 4, HEIGHT-2);
-  add_rot_to_board(*p_b, *p_r, 6, HEIGHT-2);
+  (*p_b)[HEIGHT-1][2] = 1;
+  (*p_b)[HEIGHT-2][2] = 1;
+  (*p_b)[HEIGHT-1][3] = 1;
+  (*p_b)[HEIGHT-1][4] = 1;
   display_board(*p_b);
 
   p_Metric metrics[2];
